@@ -1,110 +1,102 @@
 #include <Arduino.h>
 #include <FastLED.h>
 
-#define LED_PIN     8
-#define NUM_LEDS    7
-#define MIDDLE_LED  3
+#define LED_PIN     2
+#define NUM_LEDS    134
+#define MIDDLE_1_LED  13
+#define MIDDLE_2_LED  67
 #define LED_TYPE    WS2812B
 #define COLOR_ORDER GRB
+#define BRIGHTNESS 100
+#define POT_MASK 0b1111111111100000
+
 CRGB leds[NUM_LEDS];
 
-// Define pins for the toggle switches
-#define SW_R1  2  // Red control for left side
-#define SW_G1  3  // Green control for left side
-#define SW_B1  4  // Blue control for left side
-#define SW_R2  5  // Red control for right side
-#define SW_G2  6  // Green control for right side
-#define SW_B2  7  // Blue control for right side
+// Define pins for the potentiometers
+#define POT_R1  A0  // Red control for left side
+#define POT_G1  A1  // Green control for left side
+#define POT_B1  A2  // Blue control for left side
+#define POT_R2  A3  // Red control for right side
+#define POT_G2  A4  // Green control for right side
+#define POT_B2  A5  // Blue control for right side
 
-// Define the class colorSwitchs
-class colorSwitchs {
+// Define the class colorControl
+class colorControl {
   private:
-    int pins[3]; // Array to store pins for Red, Green, Blue
-    int pinStates[3]; // Array to store the last states of switches
-    bool isAnyChanged = false;
+    int pins[3]; // Array to store pins for Red, Green, Blue potentiometers
+    int lastStates[3]; // Array to store the last values of potentiometers
 
   public:
     // Constructor to initialize pins using an array and set initial states
-    colorSwitchs(int pinArray[3]) {
+    colorControl(int pinArray[3]) {
       for (int i = 0; i < 3; i++) {
         pins[i] = pinArray[i];
-        pinMode(pins[i], INPUT_PULLUP);
-        pinStates[i] = 1 - digitalRead(pins[i]); // Initialize last states. Use NOT because of the pullup resistor
-        Serial.print(i);
-        Serial.print(": ");
-        Serial.println(pinStates[i]);
+        lastStates[i] = analogRead(pins[i]); // Initialize last states
       }
     }
 
-    // Method to get the color based on the last known states of the switches
+    // Method to get the color based on the potentiometer values
     CRGB getColor() {
-      return CRGB(pinStates[0] * 255, pinStates[1] * 255, pinStates[2] * 255);
+      return CRGB(map(analogRead(pins[0]) & POT_MASK, 0, 1023, 0, 255),  // Map Red value
+                  map(analogRead(pins[1]) & POT_MASK, 0, 1023, 0, 255),  // Map Green value
+                  map(analogRead(pins[2]) & POT_MASK, 0, 1023, 0, 255)); // Map Blue value
     }
 
-    // Method to check if any of the switches' states have changed
-    bool isChanged() {
-      return isAnyChanged;
-    }
-
-    // Method to update the last known states of the switches
+    // Method to update the last known values of the potentiometers
     void updateStates() {
-      isAnyChanged = false;
       for (int i = 0; i < 3; i++) {
-        bool lastState = pinStates[i];
-        pinStates[i] = 1 - digitalRead(pins[i]); // Update each switch state.  Use NOT because of the pullup resistor
-        if(pinStates[i] != lastState)
-          isAnyChanged = true;
+        lastStates[i] = analogRead(pins[i]); // Update each potentiometer value
       }
     }
 };
 
-
 // Arrays for the pin numbers for each side
-int leftPins[3] = {SW_R1, SW_G1, SW_B1};
-int rightPins[3] = {SW_R2, SW_G2, SW_B2};
+int leftPins[3] = {POT_R1, POT_G1, POT_B1};
+int rightPins[3] = {POT_R2, POT_G2, POT_B2};
 
-// Create pointers for colorSwitchs instances
-colorSwitchs* leftSwitches;
-colorSwitchs* rightSwitches;
-
+// Create pointers for colorControl instances
+colorControl* leftControl;
+colorControl* rightControl;
 
 void setup() {
-  Serial.begin(9600);
   FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS);
-  FastLED.setBrightness(5);
   
-  // Starting indication
-  fill_solid(leds, NUM_LEDS, CRGB(255,0,0));
+  FastLED.setBrightness(1);
+  fill_solid(leds, NUM_LEDS , CRGB::Black);
+  FastLED.show();
+  delay(2000);
+  fill_solid(leds, NUM_LEDS , CRGB::Red);
   FastLED.show();
   delay(1000);
-  fill_solid(leds, NUM_LEDS, CRGB(0,0,0));
+  fill_solid(leds, NUM_LEDS , CRGB::Green);
   FastLED.show();
-  delay(100);
+  delay(1000);
+  fill_solid(leds, NUM_LEDS , CRGB::Blue);
+  FastLED.show();
+  delay(1000);
 
-  // Initialize colorSwitchs instances inside setup
-  leftSwitches = new colorSwitchs(leftPins);
-  rightSwitches = new colorSwitchs(rightPins);
-  delay(100);
+  FastLED.setBrightness(BRIGHTNESS);
+  // Initialize colorControl instances inside setup
+  leftControl = new colorControl(leftPins);
+  rightControl = new colorControl(rightPins);
 }
 
 void loop() {
-  // Check if there is a change in the left or right switches
-  if (leftSwitches->isChanged() || rightSwitches->isChanged()) {
-    // Get the updated colors
-    CRGB colorLeft = leftSwitches->getColor();
-    CRGB colorRight = rightSwitches->getColor();
+  // Get the updated colors
+  CRGB colorLeft = leftControl->getColor();
+  CRGB colorRight = rightControl->getColor();
 
-    // Update the LED strip with the new colors for both sides
-    fill_solid(leds, MIDDLE_LED, colorLeft);                // Left side
-    fill_solid(leds + MIDDLE_LED, NUM_LEDS - MIDDLE_LED, colorRight); // Right side
+  // Update the LED strip with the new colors for both sides
+  fill_solid(leds, MIDDLE_1_LED, colorLeft);                // Left side 1
+  fill_solid(leds + MIDDLE_1_LED, MIDDLE_2_LED, colorRight); // Right side
+  fill_solid(leds + MIDDLE_1_LED + MIDDLE_2_LED, NUM_LEDS - MIDDLE_1_LED - MIDDLE_2_LED, colorLeft); // Left side 2
 
-    // Show the updated LEDs
-    FastLED.show();
-  }
+  // Show the updated LEDs
+  FastLED.show();
 
-  // Update the states of both switch sets after each loop, regardless of changes
-  leftSwitches->updateStates();
-  rightSwitches->updateStates();
+  // Update the states of both potentiometer sets after each loop
+  leftControl->updateStates();
+  rightControl->updateStates();
 
-  delay(100); // Short delay to reduce flickering and debounce
+  delay(50); // Short delay to reduce flickering and debounce
 }
